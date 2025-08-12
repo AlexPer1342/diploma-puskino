@@ -83,7 +83,24 @@ except Exception as e:
     st.error(f"Nepavyko perskaityti PDF šablono '{selected_template}': {e}")
     st.stop()
 
-# -------------------- ĮKELIMAS: tik Excel --------------------
+# -------------------- ĮKELIMAS: tik Excel + ŠABLONO ATSISIUNTIMAS --------------------
+EXCEL_TEMPLATE_FILE = "padekos_testas.xlsx"  # <- jei tavo failas vadinasi kitaip, pakeisk čia
+
+with st.expander("📄 Neturi Excel? Atsisiųsk paruoštą šabloną"):
+    if os.path.exists(EXCEL_TEMPLATE_FILE):
+        with open(EXCEL_TEMPLATE_FILE, "rb") as f:
+            st.download_button(
+                "📥 Atsisiųsti Excel šabloną (padekos_testas.xlsx)",
+                data=f.read(),
+                file_name=os.path.basename(EXCEL_TEMPLATE_FILE),
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+    else:
+        st.warning(f"Šablono failas „{EXCEL_TEMPLATE_FILE}“ nerastas projekto aplanke.")
+
+xls_file = st.file_uploader("Excel sąrašas", type=["xls", "xlsx"], key="xls")
+
 xls_file = st.file_uploader("Excel sąrašas", type=["xls", "xlsx"], key="xls")
 
 # -------------------- IŠDĖSTYMAS / NUSTATYMAI --------------------
@@ -114,7 +131,7 @@ wrap_comment = st.sidebar.checkbox("Laužyti komentarą iki pločio", value=True
 comment_width = st.sidebar.number_input("Komentaro maksimalus plotis (pt)",
                                         value=420, min_value=100, max_value=int(TEMPLATE_PAGE_WIDTH))
 
-# NAUJA: vardo laužymo nustatymas (iki 2 eilučių)
+# vardo laužymas iki 2 eilučių
 vardas_width = st.sidebar.number_input("Vardo maksimalus plotis (pt)",
                                        value=int(TEMPLATE_PAGE_WIDTH * 0.75),
                                        min_value=100, max_value=int(TEMPLATE_PAGE_WIDTH))
@@ -123,7 +140,7 @@ st.sidebar.subheader("Išvestis")
 make_single_pdf = st.sidebar.checkbox("Sujungti visus į vieną PDF", value=False)
 out_prefix = st.sidebar.text_input("Failų vardų priešdėlis", value="Padekos_rastas")
 
-# -------------------- PIEŠIMAS / MERGE --------------------
+# -------------------- TEKSTO LAUŽYMAS --------------------
 def _wrap_text_to_lines(c, text, font_used, size, max_width, max_lines=None):
     """
     Laužo tekstą į eilutes pagal max_width. Jei max_lines nurodytas (pvz., 2),
@@ -153,14 +170,13 @@ def _wrap_text_to_lines(c, text, font_used, size, max_width, max_lines=None):
         lines.append(cur)
 
     if max_lines and len(lines) > max_lines:
-        # sujunk visas likusias į paskutinę eilutę
         head = lines[:max_lines-1]
         tail = " ".join(lines[max_lines-1:])
-        # jei tail per platus, vis tiek dedame – svarbiausia neviršyti max_lines
         lines = head + [tail]
 
     return lines
 
+# -------------------- PIEŠIMAS / MERGE --------------------
 def make_overlay_pdf(row, page_width, page_height):
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=(page_width, page_height))
@@ -208,7 +224,7 @@ def make_overlay_pdf(row, page_width, page_height):
     draw_text(klase_x, klase_y, row.get("Klasė", ""), fs_klase, FONT_REGULAR_NAME, align_center=center_text)
 
     # Jei vardas užėmė dvi eilutes – nuleidžiame komentarą 40 pt žemiau
-    komentaras_y_adj = komentaras_y - 55 if name_lines_used > 1 else komentaras_y
+    komentaras_y_adj = komentaras_y - 40 if name_lines_used > 1 else komentaras_y
 
     # KOMENTARAS – ExtraLight (laužomas pagal comment_width)
     draw_text(
@@ -227,7 +243,6 @@ def make_overlay_pdf(row, page_width, page_height):
     c.save()
     buf.seek(0)
     return buf
-
 
 def merge_overlay_with_template(template_bytes, overlay_bytes):
     tpl_reader = PdfReader(template_bytes)
