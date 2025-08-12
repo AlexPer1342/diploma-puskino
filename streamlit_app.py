@@ -111,8 +111,12 @@ with st.expander("📄 Neturi Excel? Atsisiųsk paruoštą šabloną"):
 xls_file = st.file_uploader("Excel sąrašas", type=["xls", "xlsx"], key="xls_upload")
 
 # -------------------- IŠDĖSTYMAS / NUSTATYMAI --------------------
-st.sidebar.header("🛠️ Išdėstymo nustatymai (taškai)")
+st.sidebar.header("🛠️ Išdėstymo ir išvesties  nustatymai")
+st.sidebar.subheader("Išvestis")
+make_single_pdf = st.sidebar.checkbox("Sujungti visus į vieną PDF", value=True)
+out_prefix = st.sidebar.text_input("Failų vardų priešdėlis", value="Padekos_rastas")
 st.sidebar.caption("Koordinatės nuo kairio-apatinio kampo. Tekstas bus dedamas ant šablono.")
+
 
 def xy_slider(label_x, label_y, default_x, default_y):
     x = st.sidebar.number_input(f"{label_x} (X)", value=float(default_x), step=1.0)
@@ -148,9 +152,7 @@ vardas_width = st.sidebar.number_input(
     min_value=100, max_value=int(TEMPLATE_PAGE_WIDTH)
 )
 
-st.sidebar.subheader("Išvestis")
-make_single_pdf = st.sidebar.checkbox("Sujungti visus į vieną PDF", value=False)
-out_prefix = st.sidebar.text_input("Failų vardų priešdėlis", value="Padekos_rastas")
+
 
 # -------------------- HELPER: SAUGUS FAILO VARDAS --------------------
 def make_safe_filename(value, fallback="failas"):
