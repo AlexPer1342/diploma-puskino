@@ -26,6 +26,8 @@ st.markdown(
 TEMPLATE_CANDIDATES = ["sablon2025.pdf", "sablon2025 s logo.pdf"]
 CITY_PREFIX = "Vilnius"
 
+EXCEL_TEMPLATE_FILE = "padekos_testas.xlsx"  # esantis faile projekte
+
 FONT_REGULAR_FILE = "JosefinSans-Regular.ttf"
 FONT_BOLD_FILE    = "JosefinSans-Bold.ttf"
 FONT_LIGHT_FILE   = "JosefinSans-ExtraLight.ttf"
@@ -50,6 +52,7 @@ has_regular = register_font_safe(FONT_REGULAR_FILE, FONT_REGULAR_NAME)
 has_bold    = register_font_safe(FONT_BOLD_FILE,    FONT_BOLD_NAME)
 has_light   = register_font_safe(FONT_LIGHT_FILE,   FONT_LIGHT_NAME)
 
+# Fallback'ai
 if not has_regular:
     FONT_REGULAR_NAME = "Helvetica"
 if not has_bold:
@@ -67,7 +70,12 @@ if not available_templates:
     )
     st.stop()
 
-selected_template = st.selectbox("Pasirinkite PDF šabloną", options=available_templates, index=0)
+selected_template = st.selectbox(
+    "Pasirinkite PDF šabloną",
+    options=available_templates,
+    index=0,
+    key="template_select"
+)
 
 def probe_template_size(path: str):
     with open(path, "rb") as f:
@@ -83,9 +91,7 @@ except Exception as e:
     st.error(f"Nepavyko perskaityti PDF šablono '{selected_template}': {e}")
     st.stop()
 
-# -------------------- ĮKELIMAS: tik Excel + ŠABLONO ATSISIUNTIMAS --------------------
-EXCEL_TEMPLATE_FILE = "padekos_testas.xlsx"  # <- jei tavo failas vadinasi kitaip, pakeisk čia
-
+# -------------------- ATSISIŲSTI EXCEL ŠABLONĄ (ESANTĮ DISKE) --------------------
 with st.expander("📄 Neturi Excel? Atsisiųsk paruoštą šabloną"):
     if os.path.exists(EXCEL_TEMPLATE_FILE):
         with open(EXCEL_TEMPLATE_FILE, "rb") as f:
@@ -94,14 +100,14 @@ with st.expander("📄 Neturi Excel? Atsisiųsk paruoštą šabloną"):
                 data=f.read(),
                 file_name=os.path.basename(EXCEL_TEMPLATE_FILE),
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
+                use_container_width=True,
+                key="btn_download_template",
             )
     else:
         st.warning(f"Šablono failas „{EXCEL_TEMPLATE_FILE}“ nerastas projekto aplanke.")
 
-xls_file = st.file_uploader("Excel sąrašas", type=["xls", "xlsx"], key="xls")
-
-xls_file = st.file_uploader("Excel sąrašas", type=["xls", "xlsx"], key="xls")
+# -------------------- ĮKĖLIMAS: tik Excel --------------------
+xls_file = st.file_uploader("Excel sąrašas", type=["xls", "xlsx"], key="xls_upload")
 
 # -------------------- IŠDĖSTYMAS / NUSTATYMAI --------------------
 st.sidebar.header("🛠️ Išdėstymo nustatymai (taškai)")
@@ -112,6 +118,7 @@ def xy_slider(label_x, label_y, default_x, default_y):
     y = st.sidebar.number_input(f"{label_y} (Y)", value=float(default_y), step=1.0)
     return x, y
 
+# Pradinės (pasikoreguok pagal maketą)
 tipas_x, tipas_y           = xy_slider("TIPAS X",         "TIPAS Y",         TEMPLATE_PAGE_WIDTH/2, 540)
 vardas_x, vardas_y         = xy_slider("VARDAS X",        "VARDAS Y",        TEMPLATE_PAGE_WIDTH/2, 400)
 klase_x, klase_y           = xy_slider("KLASĖ X",         "KLASĖ Y",         TEMPLATE_PAGE_WIDTH/2, 460)
@@ -131,7 +138,7 @@ wrap_comment = st.sidebar.checkbox("Laužyti komentarą iki pločio", value=True
 comment_width = st.sidebar.number_input("Komentaro maksimalus plotis (pt)",
                                         value=420, min_value=100, max_value=int(TEMPLATE_PAGE_WIDTH))
 
-# vardo laužymas iki 2 eilučių
+# Vardo laužymas (iki 2 eilučių)
 vardas_width = st.sidebar.number_input("Vardo maksimalus plotis (pt)",
                                        value=int(TEMPLATE_PAGE_WIDTH * 0.75),
                                        min_value=100, max_value=int(TEMPLATE_PAGE_WIDTH))
@@ -226,13 +233,13 @@ def make_overlay_pdf(row, page_width, page_height):
     # Jei vardas užėmė dvi eilutes – nuleidžiame komentarą 40 pt žemiau
     komentaras_y_adj = komentaras_y - 40 if name_lines_used > 1 else komentaras_y
 
-    # KOMENTARAS – ExtraLight (laužomas pagal comment_width)
+    # KOMENTARAS – ExtraLight (laužomas pagal comment_width tik jei įjungtas wrap_comment)
     draw_text(
         komentaras_x, komentaras_y_adj,
         row.get("Komentaras", ""),
         fs_komentaras, FONT_LIGHT_NAME,
         align_center=center_text,
-        max_width=comment_width,
+        max_width=(comment_width if wrap_comment else None),
         max_lines=None
     )
 
@@ -275,7 +282,9 @@ if xls_file is not None:
             if "Metai" not in df.columns:
                 df["Metai"] = ""
             current_year = datetime.now().year
-            df["Metai"] = df["Metai"].apply(lambda v: f"{CITY_PREFIX}, {current_year}" if pd.isna(v) or str(v).strip() == "" else v)
+            df["Metai"] = df["Metai"].apply(
+                lambda v: f"{CITY_PREFIX}, {current_year}" if pd.isna(v) or str(v).strip() == "" else v
+            )
             st.success("Excel nuskaitytas sėkmingai. Tuščios „Metai“ reikšmės užpildytos automatiškai.")
             st.dataframe(df.head(20))
     except Exception as e:
@@ -284,8 +293,11 @@ if xls_file is not None:
 # -------------------- PREVIEW FUNKCIJA --------------------
 if df is not None and len(df) > 0:
     st.subheader("👁️ Peržiūros režimas")
-    row_index = st.number_input("Pasirinkite eilutės indeksą peržiūrai", min_value=0, max_value=len(df)-1, value=0, step=1)
-    if st.button("🔍 Generuoti peržiūrą pasirinktam įrašui"):
+    row_index = st.number_input(
+        "Pasirinkite eilutės indeksą peržiūrai",
+        min_value=0, max_value=len(df)-1, value=0, step=1, key="preview_index"
+    )
+    if st.button("🔍 Generuoti peržiūrą pasirinktam įrašui", key="btn_preview"):
         with open(selected_template, "rb") as base_tpl:
             template_bytes_data = base_tpl.read()
         preview_buf = merge_overlay_with_template(
@@ -295,24 +307,27 @@ if df is not None and len(df) > 0:
         st.download_button(
             "⬇️ Atsisiųsti peržiūros PDF",
             data=preview_buf,
-            file_name=f"preview_{df.iloc[row_index]['Vardas']}.pdf",
+            file_name=f"preview_{str(df.iloc[row_index]['Vardas']).strip().replace('/', '_').replace('\\', '_')}.pdf",
             mime="application/pdf",
+            key="btn_download_preview"
         )
 
 # -------------------- GENERAVIMAS --------------------
 st.divider()
-generate = st.button("🚀 Generuoti PDF(-us)", type="primary", disabled=df is None)
+generate = st.button("🚀 Generuoti PDF(-us)", type="primary", disabled=df is None, key="btn_generate")
 
 if generate:
     try:
         with open(selected_template, "rb") as base_tpl:
             template_bytes_data = base_tpl.read()
+
         pdf_buffers = []
         for idx, row in df.iterrows():
             overlay_buf = make_overlay_pdf(row, TEMPLATE_PAGE_WIDTH, TEMPLATE_PAGE_HEIGHT)
             merged_buf = merge_overlay_with_template(io.BytesIO(template_bytes_data), overlay_buf)
             safe_name = str(row.get("Vardas", f"asmuo_{idx}")).strip().replace("/", "_").replace("\\", "_")
             pdf_buffers.append((f"{out_prefix}_{safe_name}.pdf", merged_buf))
+
         if make_single_pdf:
             writer = PdfWriter()
             for _, buf in pdf_buffers:
@@ -328,6 +343,7 @@ if generate:
                 data=single_buf,
                 file_name=f"{out_prefix}_visi_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
                 mime="application/pdf",
+                key="btn_download_single"
             )
         else:
             zip_buf = io.BytesIO()
@@ -341,6 +357,7 @@ if generate:
                 data=zip_buf,
                 file_name=f"{out_prefix}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
                 mime="application/zip",
+                key="btn_download_zip"
             )
     except Exception as e:
         st.error(f"Generuojant įvyko klaida: {e}")
