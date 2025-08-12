@@ -248,7 +248,7 @@ def make_overlay_pdf(row, page_width, page_height):
     draw_text(klase_x, klase_y, row.get("Klasė", ""), fs_klase, FONT_REGULAR_NAME, align_center=center_text)
 
     # Jei vardas užėmė dvi eilutes – nuleidžiame komentarą 40 pt žemiau
-    komentaras_y_adj = komentaras_y - 40 if name_lines_used > 1 else komentaras_y
+    komentaras_y_adj = komentaras_y - 55 if name_lines_used > 1 else komentaras_y
 
     # KOMENTARAS – ExtraLight (laužomas pagal comment_width tik jei įjungtas wrap_comment)
     draw_text(
