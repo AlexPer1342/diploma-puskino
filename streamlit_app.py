@@ -360,4 +360,4 @@ if generate:
                 key="btn_download_zip"
             )
     except Exception as e:
-        st.error(f"Generuojant įvyko klaida: {e}")
+        st.error(f"Generuojant įvyko klaidos: {e}")
