@@ -1,6 +1,7 @@
 import io
 import zipfile
 import os
+import re
 from datetime import datetime
 
 import streamlit as st
@@ -106,7 +107,7 @@ with st.expander("📄 Neturi Excel? Atsisiųsk paruoštą šabloną"):
     else:
         st.warning(f"Šablono failas „{EXCEL_TEMPLATE_FILE}“ nerastas projekto aplanke.")
 
-# -------------------- ĮKĖLIMAS: tik Excel --------------------
+# -------------------- ĮKELIMAS: tik Excel --------------------
 xls_file = st.file_uploader("Excel sąrašas", type=["xls", "xlsx"], key="xls_upload")
 
 # -------------------- IŠDĖSTYMAS / NUSTATYMAI --------------------
@@ -135,17 +136,33 @@ fs_metai      = st.sidebar.number_input("MIESTAS/METAI (pt)", value=14, min_valu
 st.sidebar.subheader("Tekstų derinimas")
 center_text = st.sidebar.checkbox("Centruoti tekstus pagal X", value=True)
 wrap_comment = st.sidebar.checkbox("Laužyti komentarą iki pločio", value=True)
-comment_width = st.sidebar.number_input("Komentaro maksimalus plotis (pt)",
-                                        value=420, min_value=100, max_value=int(TEMPLATE_PAGE_WIDTH))
+comment_width = st.sidebar.number_input(
+    "Komentaro maksimalus plotis (pt)",
+    value=420, min_value=100, max_value=int(TEMPLATE_PAGE_WIDTH)
+)
 
 # Vardo laužymas (iki 2 eilučių)
-vardas_width = st.sidebar.number_input("Vardo maksimalus plotis (pt)",
-                                       value=int(TEMPLATE_PAGE_WIDTH * 0.75),
-                                       min_value=100, max_value=int(TEMPLATE_PAGE_WIDTH))
+vardas_width = st.sidebar.number_input(
+    "Vardo maksimalus plotis (pt)",
+    value=int(TEMPLATE_PAGE_WIDTH * 0.75),
+    min_value=100, max_value=int(TEMPLATE_PAGE_WIDTH)
+)
 
 st.sidebar.subheader("Išvestis")
 make_single_pdf = st.sidebar.checkbox("Sujungti visus į vieną PDF", value=False)
 out_prefix = st.sidebar.text_input("Failų vardų priešdėlis", value="Padekos_rastas")
+
+# -------------------- HELPER: SAUGUS FAILO VARDAS --------------------
+def make_safe_filename(value, fallback="failas"):
+    """Paverčia tekstą saugiu failo vardu (pakeičia draudžiamus simbolius į underscore)."""
+    if value is None:
+        return fallback
+    name = str(value).strip()
+    # Pakeičiam \ / : * ? " < > | į _
+    name = re.sub(r'[\\/:*?"<>|]+', '_', name)
+    # Suvienodinam daugybinius _
+    name = re.sub(r'_+', '_', name).strip('_')
+    return name or fallback
 
 # -------------------- TEKSTO LAUŽYMAS --------------------
 def _wrap_text_to_lines(c, text, font_used, size, max_width, max_lines=None):
@@ -304,10 +321,11 @@ if df is not None and len(df) > 0:
             io.BytesIO(template_bytes_data),
             make_overlay_pdf(df.iloc[row_index], TEMPLATE_PAGE_WIDTH, TEMPLATE_PAGE_HEIGHT)
         )
+        safe_preview_name = make_safe_filename(df.iloc[row_index]["Vardas"], fallback="perziura")
         st.download_button(
             "⬇️ Atsisiųsti peržiūros PDF",
             data=preview_buf,
-            file_name=f"preview_{str(df.iloc[row_index]['Vardas']).strip().replace('/', '_').replace('\\', '_')}.pdf",
+            file_name=f"preview_{safe_preview_name}.pdf",
             mime="application/pdf",
             key="btn_download_preview"
         )
@@ -325,7 +343,7 @@ if generate:
         for idx, row in df.iterrows():
             overlay_buf = make_overlay_pdf(row, TEMPLATE_PAGE_WIDTH, TEMPLATE_PAGE_HEIGHT)
             merged_buf = merge_overlay_with_template(io.BytesIO(template_bytes_data), overlay_buf)
-            safe_name = str(row.get("Vardas", f"asmuo_{idx}")).strip().replace("/", "_").replace("\\", "_")
+            safe_name = make_safe_filename(row.get("Vardas", f"asmuo_{idx}"))
             pdf_buffers.append((f"{out_prefix}_{safe_name}.pdf", merged_buf))
 
         if make_single_pdf:
@@ -360,4 +378,4 @@ if generate:
                 key="btn_download_zip"
             )
     except Exception as e:
-        st.error(f"Generuojant įvyko klaidos: {e}")
+        st.error(f"Generuojant įvyko klaida: {e}")
