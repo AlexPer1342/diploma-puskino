@@ -274,17 +274,18 @@ def merge_overlay_with_template(template_bytes, overlay_bytes):
     tpl_reader = PdfReader(template_bytes)
     ovl_reader = PdfReader(overlay_bytes)
 
-    tpl_page = tpl_reader.pages[0]
-    ovl_page = ovl_reader.pages[0]
-
-    tpl_page.merge_page(ovl_page)
-
     writer = PdfWriter()
-    writer.add_page(tpl_page)
+
+    # Pirmiausia pridedame šablono puslapį
+    tpl_page = writer.add_page(tpl_reader.pages[0])
+
+    # Tada uždedame tekstą ant šablono
+    tpl_page.merge_page(ovl_reader.pages[0])
 
     out_buf = io.BytesIO()
     writer.write(out_buf)
     out_buf.seek(0)
+
     return out_buf
 
 # -------------------- EXCEL NUSKAITYMAS + „Metai“ AUTO --------------------
